@@ -15,7 +15,7 @@ const smart_overall_require_08003809_action = require("./routes/10.17.66.122/iot
 const smart_man_working_status = require("./routes/10.17.66.122/iot/smart/SmartFactoryManWorking/smart_man_working_status");
 const smart_man_master_process = require("./routes/10.17.66.121/iot/smart/SmartFacManWorkingInput/smart_man_master_process");
 const smart_man_working_input = require("./routes/10.17.66.121/iot/smart/SmartFacManWorkingInput/smart_man_working_input");
-const fpc_holdingtime_ab = require("./routes/10.17.66.230/iot/Holding time/fpc_holdingtime_ab");
+const fpc_holdingtime_ab = require("./routes/10.17.66.230/iot/public/Holding time/fpc_holdingtime_ab");
 const foxsystem_daily_report = require("./routes/10.17.66.122/iot/fox/foxsystem_daily_report");
 
 const app = express();
