@@ -930,9 +930,112 @@ router.get("/filter-fc-accuracy-product-series", async(req, res) => {
 })
 
 //Plannig Forecast Vs PO
-//Filter_WIP_Details_OK
-router.get("/filter-summary-fc-accuracy-product-series", async(req, res) => {
-
-})
+//Fc_analysis_Page
+router.get("/filter-fc-analysis", async(req, res) => {
+    try {
+        const result = await query(
+            `select DISTINCT 
+            COALESCE(DB_PLN_FC_ACCURACY.pfh_forecast_sales , '-') as sales
+            ,DB_PRD_LIST.prd_name as part
+            ,'Factory' as ship_factory
+            ,'Planner' as planner
+            ,COALESCE(DB_PLN_FC.qty_fc , 0) as fc
+            ,COALESCE(DB_PLN_PO_COVER_FC.count_wk , 0) as po_cover_fc
+            ,COALESCE(DB_PLN_FC_ACCURACY.fc_accuracy , 0) as fc_accuracy
+            ,COALESCE(DB_PLN_WIP_DETAIL.qty_wip_detail , 0) as wip
+            ,COALESCE(DB_PLN_FG_DETAIL.qty_good , 0) as fg
+            ,COALESCE(DB_PLN_POBAL_DETAIL.qty_bal , 0) as po_bal
+            ,case 
+                WHEN COALESCE(DB_PLN_POBAL_DETAIL.qty_bal, 0) = 0 THEN 0.00
+                ELSE 
+                    ROUND(
+                        ((CAST(COALESCE(DB_PLN_WIP_DETAIL.qty_wip_detail, 0) AS decimal) + 
+                          CAST(COALESCE(DB_PLN_FG_DETAIL.qty_good, 0) AS decimal)) / 
+                         NULLIF(CAST(COALESCE(DB_PLN_POBAL_DETAIL.qty_bal, 0) AS decimal), 0)) * 100 ,
+                        2  -- Number of decimal places
+                    )
+            END AS wip_fg_compare_po
+            ,CASE
+                WHEN COALESCE(DB_PLN_FC.qty_fc, 0) = 0 THEN 0.00
+                ELSE 
+                    ROUND(
+                        ((CAST(COALESCE(DB_PLN_WIP_DETAIL.qty_wip_detail, 0) AS decimal) + 
+                          CAST(COALESCE(DB_PLN_FG_DETAIL.qty_good, 0) AS decimal)) / 
+                         NULLIF(CAST(COALESCE(DB_PLN_FC.qty_fc, 0) AS decimal), 0)) * 100 ,
+                        2  -- Number of decimal places
+                    )
+            END AS wip_fg_compare_fc
+        from
+            (select DISTINCT pf.prd_name 
+            from pln.pln_fc pf 
+            union
+            select distinct ppwf.prd_name 
+            from pln.pln_po_wip_fg ppwf 
+            union
+            select distinct pass.prd_name 
+            from pln.pln_actual_ship_summary pass 
+            union
+            select distinct pfd.prd_name 
+            from pln.pln_fg_detail pfd
+            union
+            select distinct pfu.prd_name 
+            from pln.pln_fg_unmovement pfu 
+            union
+            select distinct ppd.prd_name 
+            from pln.pln_pobal_detail ppd 
+            union
+            select distinct pwd.prd_name 
+            from pln.pln_wip_detail pwd 
+            union
+            select distinct pwp.prd_name 
+            from pln.pln_wip_pending pwp 
+            union
+            select distinct pwpd.prd_name 
+            from pln.pln_wip_pending_details pwpd 
+            ) DB_PRD_LIST
+        LEFT JOIN pln.pln_pobal_cover_fc DB_PLN_PO_COVER_FC
+        ON DB_PRD_LIST.prd_name = DB_PLN_PO_COVER_FC.prd_name
+        left join 	
+            (select pf.prd_name 
+                    ,sum(pf.qty_fc) as qty_fc 
+            from pln.pln_fc pf 
+            --where pf.prd_name = 'CAC-126S-1B'
+            where pf.wk >= 'WK' || (SELECT SUBSTR(TO_CHAR(CURRENT_DATE + INTERVAL '0 DAYS', 'YYYYWW'), 3, 4))
+            and pf.pfd_period_no >= (SELECT substring(TO_CHAR(CURRENT_DATE - INTERVAL '0 days', 'YYYYWW'), 1, 6))
+            group by pf.prd_name) DB_PLN_FC
+        on DB_PRD_LIST.prd_name = DB_PLN_FC.prd_name
+        left join 	
+            (select	pfasb.prd_name 
+                    ,ROUND(avg(pfasb.fc_accuracy),0) as fc_accuracy
+                    ,pfasb.pfh_forecast_sales
+            from pln.pln_fc_accuracy_sale_branch pfasb 
+            --where pfasb.prd_name = 'CAC-126S-1B'
+            where pfasb.wk >= 'WK' || (SELECT SUBSTR(TO_CHAR(CURRENT_DATE - INTERVAL '84 DAYS', 'YYYYWW'), 3, 4))
+            and pfasb.wk <= 'WK' || (SELECT SUBSTR(TO_CHAR(CURRENT_DATE + INTERVAL '70 DAYS', 'YYYYWW'), 3, 4))
+            group by pfasb.prd_name , pfasb.pfh_forecast_sales) DB_PLN_FC_ACCURACY
+        on DB_PRD_LIST.prd_name = DB_PLN_FC_ACCURACY.prd_name
+        left join 	
+            (select	pfd.prd_name 
+                    ,pfd.qty_good 
+            from pln.pln_fg_detail pfd ) DB_PLN_FG_DETAIL
+        on DB_PRD_LIST.prd_name = DB_PLN_FG_DETAIL.prd_name
+        left join 	(select pwd.prd_name 
+                            ,sum(pwd.qty_wip_detail) as qty_wip_detail
+                    from pln.pln_wip_detail pwd 
+                    group by pwd.prd_name) DB_PLN_WIP_DETAIL
+        on DB_PRD_LIST.prd_name = DB_PLN_WIP_DETAIL.prd_name
+        left join	(select ppd.prd_name 
+                            ,sum(ppd.qty_bal) as qty_bal
+                    from pln.pln_pobal_detail ppd 
+                    group by ppd.prd_name) DB_PLN_POBAL_DETAIL
+        on DB_PRD_LIST.prd_name = DB_PLN_POBAL_DETAIL.prd_name
+        order by DB_PRD_LIST.prd_name`
+        );
+        res.status(200).json(result.rows);
+    } catch (error) {
+        console.error("Error executing query", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
 
 module.exports = router;
