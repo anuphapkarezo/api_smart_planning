@@ -941,7 +941,7 @@ router.get("/filter-fc-analysis", async(req, res) => {
             ,'Planner' as planner
             ,COALESCE(DB_PLN_FC.qty_fc , 0) as fc
             ,COALESCE(DB_PLN_PO_COVER_FC.count_wk , 0) as po_cover_fc
-            ,COALESCE(DB_PLN_FC_ACCURACY.fc_accuracy , 0) as fc_accuracy
+            ,COALESCE(DB_PLN_FC_ACCURACY.fc_accuracy , 0)  || ' %' as fc_accuracy
             ,COALESCE(DB_PLN_WIP_DETAIL.qty_wip_detail , 0) as wip
             ,COALESCE(DB_PLN_FG_DETAIL.qty_good , 0) as fg
             ,COALESCE(DB_PLN_POBAL_DETAIL.qty_bal , 0) as po_bal
@@ -954,7 +954,7 @@ router.get("/filter-fc-analysis", async(req, res) => {
                          NULLIF(CAST(COALESCE(DB_PLN_POBAL_DETAIL.qty_bal, 0) AS decimal), 0)) * 100 ,
                         2  -- Number of decimal places
                     )
-            END AS wip_fg_compare_po
+            END || ' %' AS wip_fg_compare_po
             ,CASE
                 WHEN COALESCE(DB_PLN_FC.qty_fc, 0) = 0 THEN 0.00
                 ELSE 
@@ -964,7 +964,7 @@ router.get("/filter-fc-analysis", async(req, res) => {
                          NULLIF(CAST(COALESCE(DB_PLN_FC.qty_fc, 0) AS decimal), 0)) * 100 ,
                         2  -- Number of decimal places
                     )
-            END AS wip_fg_compare_fc
+            END || ' %' AS wip_fg_compare_fc
         from
             (select DISTINCT pf.prd_name 
             from pln.pln_fc pf 
